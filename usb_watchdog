@@ -1,0 +1,96 @@
+#!/bin/sh
+
+#watchdog control script for USB-serial based watchdogs
+
+# the command to run the watchdog 160 seconds is
+#echo -en '\x10' > /dev/ttyUSB0
+#the "x10" is 16 in hexadecimal
+# and will tell the watchdog to run for 160 seconds, setting a higher (or lower) time is possible,
+# just write a different hexadecimal number, and adjust the number of seconds in the sleep command below
+# DO NOT use a too small time though or the system will not have enough time to fully reboot before the watchdog triggers again.
+
+#first we are detecting what usb serial we need to use, to avoid sending commands to the wrong device, like LTE modems
+#the device I used appears like this in dmesg when I connect it
+#[11705.304457] usb 4-1: new full-speed USB device number 2 using uhci_hcd
+#[11705.538687] ch341 4-1:1.0: ch341-uart converter detected
+#[11705.549626] usb 4-1: ch341-uart converter now attached to ttyUSB0
+#so I filter for ch341 serial chips
+
+usb_serial=$(dmesg | grep ch341 | grep tty | awk '{print $NF}' )
+
+if [ "$usb_serial" = '' ]; then
+	echo no ch341 serial dongle detected, no watchdog available
+	exit 1
+fi
+
+case "$1" in
+
+stop)
+
+touch /tmp/stop_usb_watchdog
+exit 0
+;;
+
+install)
+
+cat > /etc/init.d/usb_watchdog <<'END_OF_MESSAGE'
+#!/bin/sh /etc/rc.common
+USE_PROCD=1
+START=95
+STOP=01
+start_service() {
+    procd_open_instance
+    procd_set_param command /bin/sh "/etc/usb_watchdog"
+    #if process dies sooner than respawn_threshold, it is considered crashed and after 5 retries the service is stopped
+    procd_set_param respawn ${respawn_threshold:-3600} ${respawn_timeout:-5} ${respawn_retry:-5}
+    procd_close_instance
+}
+
+stop_service()
+{
+        /etc/usb_watchdog stop
+}
+
+END_OF_MESSAGE
+
+chmod +x /etc/init.d/usb_watchdog
+
+cat > /lib/upgrade/keep.d/usb_watchdog <<'END_OF_MESSAGE'
+/etc/usb_watchdog
+/etc/init.d/usb_watchdog
+/etc/rc.d/
+END_OF_MESSAGE
+
+/etc/init.d/usb_watchdog enable
+/etc/init.d/usb_watchdog start
+
+grep -q "usb_watchdog" /etc/rc.local
+
+if [ "$?" = 1 ]; then
+	sed -i '/exit 0/i /etc/init.d/usb_watchdog enable' /etc/rc.local
+fi
+exit 0
+;;
+
+remove)
+rm /lib/upgrade/keep.d/usb_watchdog
+rm /etc/usb_watchdog
+rm /etc/init.d/usb_watchdog
+sed -i 's|/etc/init.d/usb_watchdog enable||g' /etc/rc.local
+exit 0
+;;
+
+esac
+
+echo starting usb watchdog service
+
+while [ ! -f /tmp/stop_usb_watchdog ]; do
+
+	echo -en '\x10' > /dev/"$usb_serial"
+	sleep 30
+
+done
+
+rm /tmp/stop_usb_watchdog
+
+echo stopping usb watchdog service

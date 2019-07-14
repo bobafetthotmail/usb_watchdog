@@ -1,2 +1,2 @@
 # usb_watchdog
-scrupt to operate a USB-serial-based USB watchdog device
+script to operate a USB-serial-based USB watchdog device in OpenWrt
