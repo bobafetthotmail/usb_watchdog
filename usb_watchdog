@@ -4,10 +4,11 @@
 
 # the command to run the watchdog 160 seconds is
 #echo -en '\x10' > /dev/ttyUSB0
-#the "x10" is 16 in hexadecimal
-# and will tell the watchdog to run for 160 seconds, setting a higher (or lower) time is possible,
+#the "x40" is 64 in hexadecimal
+# and will tell the watchdog to run for 640 seconds, setting a higher (or lower) time is possible,
 # just write a different hexadecimal number, and adjust the number of seconds in the sleep command below
 # DO NOT use a too small time though or the system will not have enough time to fully reboot before the watchdog triggers again.
+# Also DO NOT use a too small time or the system will likely reset while upgrading and brick the system.
 
 #first we are detecting what usb serial we need to use, to avoid sending commands to the wrong device, like LTE modems
 #the device I used appears like this in dmesg when I connect it
@@ -86,8 +87,8 @@ echo starting usb watchdog service
 
 while [ ! -f /tmp/stop_usb_watchdog ]; do
 
-	echo -en '\x10' > /dev/"$usb_serial"
-	sleep 30
+	echo -en '\x40' > /dev/"$usb_serial"
+	sleep 10
 
 done
 
