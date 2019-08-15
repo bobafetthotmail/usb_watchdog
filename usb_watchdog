@@ -34,6 +34,10 @@ exit 0
 
 install)
 
+if [ $( ps | grep /etc/usb_watchdog | grep -v grep | grep -q /etc/usb_watchdog; echo $? ) = 0 ]; then
+	exit 0
+fi
+
 cat > /etc/init.d/usb_watchdog <<'END_OF_MESSAGE'
 #!/bin/sh /etc/rc.common
 USE_PROCD=1
@@ -58,17 +62,15 @@ chmod +x /etc/init.d/usb_watchdog
 
 cat > /lib/upgrade/keep.d/usb_watchdog <<'END_OF_MESSAGE'
 /etc/usb_watchdog
-/etc/init.d/usb_watchdog
-/etc/rc.d/
+/lib/upgrade/keep.d/usb_watchdog
 END_OF_MESSAGE
 
 /etc/init.d/usb_watchdog enable
 /etc/init.d/usb_watchdog start
 
 grep -q "usb_watchdog" /etc/rc.local
-
 if [ "$?" = 1 ]; then
-	sed -i '/exit 0/i /etc/init.d/usb_watchdog enable' /etc/rc.local
+	sed -i '/exit 0/i /etc/usb_watchdog install' /etc/rc.local
 fi
 exit 0
 ;;
@@ -77,7 +79,7 @@ remove)
 rm /lib/upgrade/keep.d/usb_watchdog
 rm /etc/usb_watchdog
 rm /etc/init.d/usb_watchdog
-sed -i 's|/etc/init.d/usb_watchdog enable||g' /etc/rc.local
+sed -i 's|/etc/usb_watchdog install||g' /etc/rc.local
 exit 0
 ;;
 
